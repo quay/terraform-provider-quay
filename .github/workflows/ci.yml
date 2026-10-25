@@ -1,0 +1,139 @@
+name: Continuous Integration
+
+on:
+  pull_request:
+    paths-ignore:
+      - "README.md"
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "README.md"
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  # ── Schema validation ─────────────────────────────────────────────────────
+  schema:
+    name: Schema Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Validate GitHub workflow files
+        run: pipx run pre-commit run --all-files check-github-workflows
+
+      - name: Require timeout-minutes on all jobs
+        run: pipx run pre-commit run --all-files check-github-workflows-require-timeout
+
+      - name: Validate dependabot config
+        run: pipx run pre-commit run --all-files check-dependabot
+
+  # ── Build & lint ──────────────────────────────────────────────────────────
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: "go.mod"
+          cache: true
+
+      - name: Build
+        run: go build -v .
+
+      - name: Lint
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        with:
+          args: --timeout=5m
+
+  # ── Generated docs drift check ───────────────────────────────────────────
+  #
+  # Fails if docs/ is out of sync with the provider schema or examples/.
+  # Run `make generate` locally and commit the result to fix this.
+  docs:
+    name: Docs
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: "go.mod"
+          cache: true
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+
+      - name: Generate docs
+        run: go generate ./...
+
+      - name: Check for docs drift
+        run: |
+          if ! git diff --exit-code docs/ examples/ templates/; then
+            echo ""
+            echo "Generated docs are out of sync with the provider code."
+            echo "Run 'make generate' and commit the updated files."
+            exit 1
+          fi
+
+  # ── Vet & unit tests ──────────────────────────────────────────────────────
+  unit:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: "go.mod"
+          cache: true
+
+      - name: Vet
+        run: go vet ./...
+
+      # Runs all packages. Provider tests without TF_ACC skip acceptance tests
+      # and only exercise schema validation — no live Quay instance needed.
+      - name: Unit tests (with race detection)
+        run: go test -race -v -count=1 -timeout 120s ./...
+
+  # ── Acceptance tests against a live Quay testcontainer ───────────────────
+  acceptance:
+    name: "Acceptance Tests: Terraform ${{ matrix.terraform }}"
+    runs-on: ubuntu-latest
+    # Quay takes 2-5 minutes to start; tests themselves add more.
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        terraform:
+          - "1.13.*"
+          - "1.14.*"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: "go.mod"
+          cache: true
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: ${{ matrix.terraform }}
+          terraform_wrapper: false
+
+      - run: go mod download
+
+      # testcontainers-go uses the Docker socket on the runner.
+      # ubuntu-latest runners have Docker pre-installed.
+      - name: Acceptance tests (with race detection)
+        env:
+          TF_ACC: "1"
+          # QUAY_URL and QUAY_TOKEN are intentionally not set here —
+          # TestMain will spin up the Quay testcontainer automatically.
+          #
+          # To run tests against an existing Quay instance instead, set:
+          # QUAY_URL: ${{ secrets.QUAY_URL }}
+          # QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+        run: go test -race -v -count=1 -timeout 20m ./internal/provider/...

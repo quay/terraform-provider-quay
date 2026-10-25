@@ -1,0 +1,53 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: no-commit-to-branch
+        args: [--branch, main]
+      - id: check-merge-conflict
+      - id: check-yaml
+      - id: check-toml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+
+  - repo: https://github.com/python-jsonschema/check-jsonschema
+    rev: 0.38.2
+    hooks:
+      - id: check-github-workflows
+      - id: check-github-workflows-require-timeout
+      - id: check-dependabot
+
+  - repo: local
+    hooks:
+      - id: go-fmt
+        name: gofmt
+        language: golang
+        entry: gofmt -l -w
+        types: [go]
+
+      - id: go-imports
+        name: goimports
+        language: golang
+        entry: goimports -l -w
+        types: [go]
+        additional_dependencies:
+          - golang.org/x/tools/cmd/goimports@latest
+
+      - id: go-vet
+        name: go vet
+        language: golang
+        entry: go vet ./...
+        types: [go]
+        pass_filenames: false
+
+      - id: go-mod-tidy
+        name: go mod tidy
+        language: golang
+        entry: go mod tidy
+        files: (go\.mod|go\.sum)
+        pass_filenames: false
+
+  - repo: https://github.com/golangci/golangci-lint
+    rev: v2.14.0
+    hooks:
+      - id: golangci-lint-full

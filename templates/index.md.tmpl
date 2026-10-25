@@ -1,0 +1,50 @@
+---
+page_title: "Quay Provider"
+description: |-
+  Use the Quay provider to manage resources on Quay.io or a self-hosted Red Hat Quay instance.
+---
+
+# Quay Provider
+
+The Quay provider manages resources on [Quay.io](https://quay.io) or a self-hosted
+[Red Hat Quay](https://www.redhat.com/en/technologies/cloud-computing/quay)
+instance via the Quay REST API.
+
+## Authentication
+
+The provider authenticates using an OAuth application token. Encrypted
+passwords generated from the CLI password page are not accepted by the API.
+
+To create a token:
+
+1. Log in to your Quay instance as an organisation admin.
+2. Navigate to the organisation, open the **Applications** tab, and create a
+   new application.
+3. Click **Generate Token** and select the scopes your configuration requires:
+   - `org:admin` — create and manage organisations
+   - `repo:admin` — create and manage repositories and their notifications
+4. Copy the token that is displayed. It is shown only once.
+
+Set the token via the `QUAY_TOKEN` environment variable to avoid storing
+credentials in your configuration files.
+
+## Example Usage
+
+{{ tffile "examples/provider/provider.tf" }}
+
+{{ .SchemaMarkdown | trimspace }}
+
+## Resources
+
+| Resource | Description |
+|---|---|
+| [quay_organization](resources/organization) | Manages a Quay organization |
+| [quay_repository](resources/repository) | Manages a Quay repository |
+| [quay_repository_notification](resources/repository_notification) | Manages a notification on a repository |
+
+## Data Sources
+
+| Data Source | Description |
+|---|---|
+| [quay_organization](data-sources/organization) | Reads information about a Quay organization |
+| [quay_repository](data-sources/repository) | Reads information about a Quay repository |

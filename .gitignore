@@ -1,0 +1,20 @@
+# Binaries
+terraform-provider-quay
+*.exe
+
+# Test output
+*.tfstate
+*.tfstate.backup
+.terraform/
+.terraform.lock.hcl
+crash.log
+crash.*.log
+
+# Direnv
+.direnv/
+
+# Go build cache
+vendor/
+
+# OS artifacts
+.DS_Store

@@ -1,0 +1,68 @@
+---
+page_title: "quay_organization Resource - quay"
+subcategory: ""
+description: |-
+  Manages a Quay organization.
+---
+
+# quay_organization (Resource)
+
+Manages a Quay organization.
+
+## Destruction behaviour
+
+Destroying a `quay_organization` resource permanently deletes the organization
+and all of its content — every repository, image, robot account, team and OAuth
+application — with no grace period, including resources not managed by
+Terraform.
+
+**Quay has no rename operation.** Changing `name` in your configuration plans a
+destroy-then-create (`-/+`), which deletes the existing organization and all of
+its content before creating a new empty one. Treat a `name` change as a
+destructive operation.
+
+To guard against accidental data loss, the provider refuses to delete an
+organization that still contains image repositories. Remove all image
+repositories before destroying the resource.
+
+**Limitation:** the guard checks image repositories only. An organization that
+has robots, teams or OAuth applications but no image repositories will be
+deleted along with those resources without triggering the guard.
+
+To prevent Terraform from ever destroying this resource, add a
+[`lifecycle` block](https://developer.hashicorp.com/terraform/language/meta-arguments/lifecycle#prevent_destroy):
+
+```terraform
+resource "quay_organization" "example" {
+  # ...
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+```
+
+Note that `prevent_destroy = true` only prevents destruction while the block is
+present in configuration. To stop managing an organization without deleting it,
+use a [`removed` block](https://developer.hashicorp.com/terraform/language/resources/syntax#removing-resources)
+(Terraform 1.7+) instead:
+
+```terraform
+removed {
+  from = quay_organization.example
+  lifecycle {
+    destroy = false
+  }
+}
+```
+
+## Example Usage
+
+{{ tffile "examples/resources/quay_organization/resource.tf" }}
+
+{{ .SchemaMarkdown | trimspace }}
+
+## Import
+
+Import is supported using the following syntax:
+
+{{ codefile "shell" "examples/resources/quay_organization/import.sh" }}
